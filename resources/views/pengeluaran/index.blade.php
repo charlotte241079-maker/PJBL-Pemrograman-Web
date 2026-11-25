@@ -1,4 +1,3 @@
-
 @extends('layouts.app')
 
 @section('title', 'Pengeluaran - UMKMHub')
@@ -17,10 +16,22 @@
             </p>
         </div>
 
-        <button class="btn btn-primary" onclick="openExpenseForm()">
-            <i class="bi bi-plus-lg me-1"></i>
-            Tambah Pengeluaran
-        </button>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- DROPDOWN KONVERSI MATA UANG (166 MATA UANG DUNIA) -->
+            <div class="input-group" style="width: auto;">
+                <span class="input-group-text bg-white text-muted small">
+                    <i class="bi bi-currency-exchange me-1"></i> Kurs
+                </span>
+                <select id="currencySelector" class="form-select fw-semibold" style="min-width: 110px;">
+                    <option value="IDR">IDR</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary" onclick="openExpenseForm()">
+                <i class="bi bi-plus-lg me-1"></i>
+                Tambah Pengeluaran
+            </button>
+        </div>
     </div>
 
     <!-- RINGKASAN -->
@@ -49,6 +60,7 @@
                         <div>
                             <p class="text-muted mb-2">Total Pengeluaran</p>
                             <h3 class="fw-bold mb-0" id="totalPengeluaran">Rp0</h3>
+                            <small class="text-muted" id="kursInfoText" style="font-size: 11px;"></small>
                         </div>
                         <div class="text-danger fs-2">
                             <i class="bi bi-wallet2"></i>
@@ -255,7 +267,12 @@
 
 <script>
 let expenses = [];
+let lastSummary = {};
 let expenseModal;
+
+// STATE KURS MATA UANG
+let currencyRates = { IDR: 1 };
+let selectedCurrency = 'IDR';
 
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -263,6 +280,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('expenseModal')
     );
 
+    loadCurrencyRates();
     loadExpenses();
 
     document.getElementById('expenseForm')
@@ -271,18 +289,64 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('searchExpense')
         .addEventListener('input', renderExpenses);
 
+    document.getElementById('currencySelector')
+        .addEventListener('change', function () {
+            selectedCurrency = this.value;
+            updateSummary(lastSummary);
+            renderExpenses();
+        });
+
 });
 
 
-// FORMAT RUPIAH
-function formatRupiah(value) {
+// MEMUAT 166 KURS MATA UANG DUNIA DARI API EKSTERNAL
+async function loadCurrencyRates() {
+    const selector = document.getElementById('currencySelector');
+    const infoText = document.getElementById('kursInfoText');
 
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0
-    }).format(Number(value) || 0);
+    try {
+        const response = await fetch('/api/v1/currency', {
+            headers: { 'Accept': 'application/json' }
+        });
+        const result = await response.json();
 
+        if (response.ok && result.status === 'success' && result.kurs_per_1_unit) {
+            currencyRates = result.kurs_per_1_unit;
+
+            const codes = Object.keys(currencyRates);
+            selector.innerHTML = codes.map(code =>
+                `<option value="${code}" ${code === 'IDR' ? 'selected' : ''}>${code}</option>`
+            ).join('');
+
+            if (infoText) {
+                infoText.textContent = `${result.total_currencies} mata uang tersedia`;
+            }
+        }
+    } catch (error) {
+        console.error('Gagal memuat data kurs mata uang:', error);
+    }
+}
+
+
+// FORMAT NOMINAL SESUAI MATA UANG YANG DIPILIH
+function formatMoney(valueInIdr) {
+    const baseAmount = Number(valueInIdr) || 0;
+
+    if (selectedCurrency === 'IDR') {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            maximumFractionDigits: 0
+        }).format(baseAmount);
+    }
+
+    const rate = currencyRates[selectedCurrency] || 1;
+    const converted = baseAmount * rate;
+
+    return `${selectedCurrency} ` + new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4
+    }).format(converted);
 }
 
 
@@ -338,8 +402,9 @@ async function loadExpenses() {
         }
 
         expenses = result.data || [];
+        lastSummary = result.summary || {};
 
-        updateSummary(result.summary || {});
+        updateSummary(lastSummary);
 
         renderExpenses();
 
@@ -370,7 +435,7 @@ function updateSummary(summary) {
         summary.total_transaksi ?? 0;
 
     document.getElementById('totalPengeluaran').textContent =
-        formatRupiah(summary.total_pengeluaran);
+        formatMoney(summary.total_pengeluaran);
 
     // Hitung pengeluaran bulan ini dari data yang diterima API
     const now = new Date();
@@ -393,7 +458,7 @@ function updateSummary(summary) {
     }, 0);
 
     document.getElementById('pengeluaranBulanIni').textContent =
-        formatRupiah(totalBulanIni);
+        formatMoney(totalBulanIni);
 
 }
 
@@ -450,7 +515,7 @@ function renderExpenses() {
             </td>
 
             <td class="fw-semibold text-danger">
-                ${formatRupiah(item.amount)}
+                ${formatMoney(item.amount)}
             </td>
 
             <td>
