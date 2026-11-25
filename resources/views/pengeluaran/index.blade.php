@@ -12,7 +12,7 @@
         <div>
             <h2 class="fw-bold mb-1">Pengeluaran</h2>
             <p class="text-muted mb-0">
-                Kelola dan pantau pengeluaran usaha Anda.
+               Pemantauan Keuangan Juragan
             </p>
         </div>
 

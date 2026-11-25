@@ -137,7 +137,7 @@
     <div class="ingredient-header">
         <div>
             <h4>Stok Bahan</h4>
-            <p>Sistem Kelola Persediaan Bahan.</p>
+            <p>Pengelolaan Bahan Juragan</p>
         </div>
 
         <button

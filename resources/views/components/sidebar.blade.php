@@ -33,7 +33,7 @@
         <a href="{{ url('/pembelian') }}"
            class="nav-link {{ request()->is('pembelian*') ? 'active' : '' }}">
             <i class="bi bi-cart3"></i>
-            <span>Pembelian</span>
+            <span>Pemasukan</span>
         </a>
 
         <a href="{{ url('/pengeluaran') }}"

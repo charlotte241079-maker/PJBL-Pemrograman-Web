@@ -6,7 +6,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
             <h1 class="mb-0 fw-bold text-dark">Data Pembelian &amp; Pelanggan UMKM</h1>
-            <small class="text-muted">Catat transaksi orang yang membeli produk beserta detail item dan pemasok/sumber barang.</small>
+            <small class="text-muted">Data Transaksi di sini ya Juragan!</small>
         </div>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-success btn-sm px-3" onclick="document.getElementById('buyer_or_notes').focus()">
