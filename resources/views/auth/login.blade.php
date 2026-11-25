@@ -69,7 +69,7 @@
         </div>
 
         <h4 class="fw-bold mb-1">Selamat Datang, Juragan!</h4>
-        <p class="text-muted small mb-4">Masuk untuk mengelola stok, transaksi, dan analisis usaha.</p>
+        <p class="text-muted small mb-4">Ayo, Berbisnis Juragan!</p>
 
         @if($errors->any())
             <div class="alert alert-danger py-2 small border-0">
