@@ -176,7 +176,91 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAnalysis();
     });
 
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            initAnalysis(true);
+        }
+    });
+
     initAnalysis();
+
+    function parseNumber(val) {
+        if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+        if (typeof val === 'string') {
+            const trimmed = val.trim();
+            if (!trimmed) return 0;
+            // Jika format Indonesia seperti "12.500,50" atau "12.500" atau "Rp 12.500"
+            const normalized = trimmed
+                .replace(/rp/gi, '')
+                .replace(/\s+/g, '')
+                .replace(/\.(?=\d{3}(\D|$))/g, '')
+                .replace(',', '.');
+            const parsed = Number(normalized.replace(/[^\d.-]/g, ''));
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+        return 0;
+    }
+
+    function extractList(payload, nestedKey = '') {
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.data)) return payload.data;
+        if (Array.isArray(payload?.data?.data)) return payload.data.data;
+        if (nestedKey && Array.isArray(payload?.data?.[nestedKey])) return payload.data[nestedKey];
+        if (nestedKey && Array.isArray(payload?.[nestedKey])) return payload[nestedKey];
+        return [];
+    }
+
+    function getPurchaseDate(item) {
+        return (
+            item?.purchase_date ??
+            item?.tanggal_pembelian ??
+            item?.date ??
+            item?.tanggal ??
+            item?.created_at ??
+            null
+        );
+    }
+
+    function getPurchaseAmount(item) {
+        const direct =
+            item?.total_price ??
+            item?.total ??
+            item?.amount ??
+            item?.subtotal ??
+            item?.grand_total ??
+            item?.price ??
+            null;
+
+        if (direct !== null && direct !== undefined && direct !== '') {
+            return parseNumber(direct);
+        }
+
+        // Fallback jika pembelian punya qty & harga satuan
+        const qty = parseNumber(item?.quantity ?? item?.qty ?? item?.jumlah ?? 0);
+        const unitPrice = parseNumber(item?.unit_price ?? item?.harga_satuan ?? item?.harga ?? 0);
+        return qty * unitPrice;
+    }
+
+    function getExpenseDate(item) {
+        return (
+            item?.expense_date ??
+            item?.tanggal_pengeluaran ??
+            item?.date ??
+            item?.tanggal ??
+            item?.created_at ??
+            null
+        );
+    }
+
+    function getExpenseAmount(item) {
+        return parseNumber(
+            item?.amount ??
+            item?.total ??
+            item?.nominal ??
+            item?.price ??
+            0
+        );
+    }
 
     function formatRupiah(value) {
         return new Intl.NumberFormat('id-ID', {
@@ -204,8 +288,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchAPI(url) {
-        const response = await fetch(url, {
-            headers: { 'Accept': 'application/json' }
+        const sep = url.includes('?') ? '&' : '?';
+        const response = await fetch(`${url}${sep}_t=${Date.now()}`, {
+            headers: {
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
+            }
         });
         const result = await response.json();
         if (!response.ok) {
@@ -214,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return result;
     }
 
-    async function initAnalysis() {
+    async function initAnalysis(silent = false) {
         const statusEl = document.getElementById('analysisStatus');
         try {
             const [ingRes, purRes, expRes] = await Promise.all([
@@ -223,22 +311,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchAPI('/api/v1/expenses')
             ]);
 
-            state.ingredients = Array.isArray(ingRes.data) ? ingRes.data : [];
-            state.purchases = Array.isArray(purRes.data) ? purRes.data : [];
-            state.expenses = Array.isArray(expRes.data) ? expRes.data : [];
+            state.ingredients = extractList(ingRes, 'ingredients');
+            state.purchases = extractList(purRes, 'purchases');
+            state.expenses = extractList(expRes, 'expenses');
 
             renderAnalysis();
             if (statusEl) statusEl.textContent = 'Data analisis berhasil diperbarui.';
         } catch (err) {
             console.error(err);
-            if (statusEl) statusEl.textContent = 'Gagal memuat data dari API. Periksa endpoint /api/v1.';
+            if (statusEl && !silent) {
+                statusEl.textContent = 'Gagal memuat data dari API. Periksa endpoint /api/v1.';
+            }
         }
     }
 
     function parseDateOnly(raw) {
         if (!raw) return null;
-        const d = new Date(String(raw).substring(0, 10) + 'T00:00:00');
-        return isNaN(d.getTime()) ? null : d;
+        const str = String(raw).trim();
+        const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (isoMatch) {
+            const d = new Date(`${isoMatch[1]}T00:00:00`);
+            return isNaN(d.getTime()) ? null : d;
+        }
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return null;
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
+    function formatDateKey(raw) {
+        const d = parseDateOnly(raw);
+        if (!d) return 'Tanpa Tanggal';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
     }
 
     function isWithinFilter(rawDate) {
@@ -266,19 +372,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderAnalysis() {
         const filteredExpenses = state.expenses.filter(item =>
-            isWithinFilter(item.expense_date ?? item.date ?? item.created_at)
+            isWithinFilter(getExpenseDate(item))
         );
         const filteredPurchases = state.purchases.filter(item =>
-            isWithinFilter(item.purchase_date ?? item.date ?? item.created_at)
+            isWithinFilter(getPurchaseDate(item))
         );
 
-        const totalExp = filteredExpenses.reduce((sum, i) => sum + Number(i.amount ?? i.total ?? 0), 0);
-        const totalPur = filteredPurchases.reduce((sum, i) => sum + Number(i.total_price ?? i.total ?? i.amount ?? 0), 0);
+        const totalExp = filteredExpenses.reduce((sum, i) => sum + getExpenseAmount(i), 0);
+        const totalPur = filteredPurchases.reduce((sum, i) => sum + getPurchaseAmount(i), 0);
 
         const categoryMap = new Map();
         filteredExpenses.forEach(item => {
-            const cat = item.category || 'Lainnya';
-            const amt = Number(item.amount ?? item.total ?? 0);
+            const cat = item.category || item.kategori || 'Lainnya';
+            const amt = getExpenseAmount(item);
             const curr = categoryMap.get(cat) || { total: 0, count: 0 };
             curr.total += amt;
             curr.count += 1;
@@ -317,15 +423,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const map = new Map();
         expenses.forEach(item => {
-            const key = String(item.expense_date ?? item.date ?? item.created_at ?? '').substring(0, 10) || 'Tanpa Tanggal';
+            const key = formatDateKey(getExpenseDate(item));
             const row = map.get(key) || { exp: 0, pur: 0 };
-            row.exp += Number(item.amount ?? item.total ?? 0);
+            row.exp += getExpenseAmount(item);
             map.set(key, row);
         });
         purchases.forEach(item => {
-            const key = String(item.purchase_date ?? item.date ?? item.created_at ?? '').substring(0, 10) || 'Tanpa Tanggal';
+            const key = formatDateKey(getPurchaseDate(item));
             const row = map.get(key) || { exp: 0, pur: 0 };
-            row.pur += Number(item.total_price ?? item.total ?? item.amount ?? 0);
+            row.pur += getPurchaseAmount(item);
             map.set(key, row);
         });
 
@@ -347,8 +453,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         label: 'Pembelian (Rp)',
                         data: labels.map(k => map.get(k).pur),
                         borderColor: '#198754',
-                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                        backgroundColor: 'rgba(25, 135, 84, 0.18)',
                         borderDash: [5, 5],
+                        pointRadius: 4,
                         tension: 0.3,
                         fill: false
                     }
