@@ -1,10 +1,23 @@
 <?php
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PurchaseController;
+
+// Rute awal: pastikan selalu mulai dari halaman login saat membuka root URL
+Route::get('/', function (Request $request) {
+    if (Auth::check()) {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+    }
+
+    return redirect()->route('login');
+});
 
 // Rute Autentikasi (Bisa diakses tanpa login)
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -13,7 +26,6 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Semua halaman aplikasi wajib login dulu
 Route::middleware('auth')->group(function () {
-    Route::get('/', fn () => redirect()->route('dashboard'));
     Route::view('/dashboard', 'dashboard.index')->name('dashboard');
     Route::view('/stok-bahan', 'stok-bahan.index')->name('stok-bahan.index');
     Route::view('/pengeluaran', 'pengeluaran.index')->name('pengeluaran.index');

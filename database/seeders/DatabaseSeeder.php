@@ -17,7 +17,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'admin@umkmhub.id'],
             [
                 'name'     => 'Admin Juragan',
-                'password' => Hash::make('admin123'),
+                'password' => Hash::make('bekasitanparaiapasih'),
             ]
         );
 
