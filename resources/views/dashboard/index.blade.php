@@ -89,6 +89,43 @@
 
     </div>
 
+    <!-- GRAFIK -->
+    <div class="d-flex justify-content-end mb-3">
+        <select id="filterPeriode" class="form-select w-auto">
+            <option value="3">3 bulan terakhir</option>
+            <option value="6" selected>6 bulan terakhir</option>
+            <option value="12">12 bulan terakhir</option>
+        </select>
+    </div>
+
+    <div class="row g-4 mb-4">
+
+        <div class="col-12 col-xl-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-1">Tren Pengeluaran</h5>
+                    <small class="text-muted">Total pengeluaran per bulan</small>
+                    <div class="mt-3" style="height:280px">
+                        <canvas id="chartTren"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-1">Per Kategori</h5>
+                    <small class="text-muted">Porsi pengeluaran tiap kategori</small>
+                    <div class="mt-3" style="height:280px">
+                        <canvas id="chartKategori"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
     <!-- INFORMASI TAMBAHAN -->
     <div class="row g-4">
 
@@ -212,8 +249,12 @@
     }
 </style>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', loadDashboard);
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('filterPeriode').addEventListener('change', renderGrafik);
+    loadDashboard();
+});
 
 function formatRupiah(value) {
     return new Intl.NumberFormat('id-ID', {
@@ -252,29 +293,34 @@ async function fetchAPI(url) {
         headers: { 'Accept': 'application/json' }
     });
 
-    const result = await response.json();
-
+    // cek status dulu sebelum membaca JSON
     if (!response.ok) {
-        throw new Error('Gagal mengambil data: ' + url);
+        throw new Error('Gagal mengambil data: ' + url + ' (HTTP ' + response.status + ')');
     }
 
-    return result;
+    return await response.json();
 }
 
 async function loadDashboard() {
     const status = document.getElementById('dashboardStatus');
 
     try {
-        const [ingredientResult, purchaseResult, expenseResult] =
-            await Promise.all([
-                fetchAPI('/api/v1/ingredients'),
-                fetchAPI('/api/v1/purchases'),
-                fetchAPI('/api/v1/expenses')
-            ]);
+        // allSettled: kalau satu API gagal, data lain tetap tampil
+        const hasil = await Promise.allSettled([
+            fetchAPI('/api/v1/ingredients'),
+            fetchAPI('/api/v1/purchases'),
+            fetchAPI('/api/v1/expenses')
+        ]);
 
-        const ingredients = ingredientResult.data || [];
-        const purchases = purchaseResult.data || [];
-        const expenses = expenseResult.data || [];
+        hasil.forEach(h => {
+            if (h.status === 'rejected') console.error('Dashboard error:', h.reason);
+        });
+
+        const ambil = h => h.status === 'fulfilled' ? (h.value.data || []) : [];
+        const ingredients = ambil(hasil[0]);
+        const purchases   = ambil(hasil[1]);
+        const expenses    = ambil(hasil[2]);
+        const jumlahGagal = hasil.filter(h => h.status === 'rejected').length;
 
         // TOTAL STOK
         const totalStok = ingredients.reduce(
@@ -320,7 +366,13 @@ async function loadDashboard() {
         // AKTIVITAS
         renderAktivitas(expenses);
 
-        status.textContent = 'Data dashboard berhasil diperbarui.';
+        // GRAFIK
+        semuaExpenses = expenses;
+        renderGrafik();
+
+        status.textContent = jumlahGagal
+            ? 'Sebagian data gagal dimuat. Periksa API.'
+            : 'Data dashboard berhasil diperbarui.';
 
     } catch (error) {
         console.error('Dashboard error:', error);
@@ -363,6 +415,96 @@ function renderAktivitas(expenses) {
         </tr>
     `).join('');
 }
+
+/* ===================== GRAFIK ===================== */
+
+let semuaExpenses = [];
+let chartTren, chartKategori;
+const WARNA = ['#6b1a2b', '#3f9468', '#e0a043', '#5b8db8', '#a9a0a3', '#8e5ea2'];
+
+function tglExpense(value) {
+    return new Date(String(value).substring(0, 10) + 'T00:00:00');
+}
+
+function expensesPeriode() {
+    const n = +document.getElementById('filterPeriode').value;
+    const batas = new Date();
+    batas.setMonth(batas.getMonth() - n);
+    return semuaExpenses.filter(e => tglExpense(e.expense_date) >= batas);
+}
+
+function renderGrafik() {
+    if (typeof Chart === 'undefined') return;
+
+    const data = expensesPeriode();
+
+    // total per bulan (kunci YYYY-MM)
+    const perBulan = {};
+    data.forEach(e => {
+        const k = String(e.expense_date).substring(0, 7);
+        perBulan[k] = (perBulan[k] || 0) + Number(e.amount || 0);
+    });
+    const bulan = Object.keys(perBulan).sort();
+    const labelBulan = bulan.map(k =>
+        new Date(k + '-01T00:00:00').toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
+    );
+
+    // total per kategori
+    const perKat = {};
+    data.forEach(e => {
+        const k = e.category || 'Lainnya';
+        perKat[k] = (perKat[k] || 0) + Number(e.amount || 0);
+    });
+    const kat = Object.keys(perKat);
+
+    // grafik garis
+    if (chartTren) chartTren.destroy();
+    chartTren = new Chart(document.getElementById('chartTren'), {
+        type: 'line',
+        data: {
+            labels: labelBulan,
+            datasets: [{
+                label: 'Pengeluaran',
+                data: bulan.map(k => perBulan[k]),
+                borderColor: '#6b1a2b',
+                backgroundColor: 'rgba(107,26,43,.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => formatRupiah(c.parsed.y) } }
+            },
+            scales: { y: { ticks: { callback: v => formatRupiah(v) } } }
+        }
+    });
+
+    // grafik donut
+    if (chartKategori) chartKategori.destroy();
+    chartKategori = new Chart(document.getElementById('chartKategori'), {
+        type: 'doughnut',
+        data: {
+            labels: kat,
+            datasets: [{
+                data: kat.map(k => perKat[k]),
+                backgroundColor: kat.map((_, i) => WARNA[i % WARNA.length])
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: { callbacks: { label: c => c.label + ': ' + formatRupiah(c.parsed) } }
+            }
+        }
+    });
+}
 </script>
 
 @endsection
+
