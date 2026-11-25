@@ -15,18 +15,19 @@
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
-    <!-- Form Search, Filter Rentang Tanggal, Kategori & Sorting -->
+    <!-- Form Search, Filter Rentang Tanggal & Kategori -->
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-body">
             <form method="GET" action="{{ route('rekap-laporan.index') }}" class="row g-2 align-items-end">
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="form-label small text-muted mb-1">Cari Judul</label>
-                    <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="Cari judul pengeluaran...">
+                    <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="Cari judul transaksi...">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small text-muted mb-1">Kategori</label>
                     <select name="category" class="form-select">
                         <option value="">-- Semua --</option>
+                        <option value="Pembelian" {{ request('category') == 'Pembelian' ? 'selected' : '' }}>Pembelian (Pemasukan)</option>
                         <option value="Bahan Baku" {{ request('category') == 'Bahan Baku' ? 'selected' : '' }}>Bahan Baku</option>
                         <option value="Operasional" {{ request('category') == 'Operasional' ? 'selected' : '' }}>Operasional</option>
                         <option value="Kemasan" {{ request('category') == 'Kemasan' ? 'selected' : '' }}>Kemasan</option>
@@ -40,13 +41,6 @@
                 <div class="col-md-2">
                     <label class="form-label small text-muted mb-1">Sampai Tanggal</label>
                     <input type="date" name="end_date" value="{{ request('end_date') }}" class="form-control">
-                </div>
-                <div class="col-md-1">
-                    <label class="form-label small text-muted mb-1">Urutkan</label>
-                    <select name="sort_dir" class="form-select">
-                        <option value="desc" {{ request('sort_dir') == 'desc' ? 'selected' : '' }}>Terbaru</option>
-                        <option value="asc" {{ request('sort_dir') == 'asc' ? 'selected' : '' }}>Terlama</option>
-                    </select>
                 </div>
                 <div class="col-md-2 d-flex gap-1">
                     <button type="submit" class="btn btn-dark w-100">Terapkan</button>
@@ -64,7 +58,8 @@
                     <tr>
                         <th>No</th>
                         <th>Tanggal</th>
-                        <th>Judul Pengeluaran</th>
+                        <th>Jenis</th>
+                        <th>Judul Transaksi</th>
                         <th>Kategori</th>
                         <th>Nominal</th>
                         <th>Keterangan</th>
@@ -72,17 +67,29 @@
                 </thead>
                 <tbody>
                     @forelse($data as $index => $item)
+                    @php
+                        $isPemasukan = ($item->jenis === 'Pemasukan');
+                    @endphp
                     <tr>
                         <td>{{ $data->firstItem() + $index }}</td>
-                        <td>{{ $item->expense_date }}</td>
-                        <td class="fw-semibold">{{ $item->title }}</td>
-                        <td><span class="badge bg-secondary">{{ $item->category }}</span></td>
-                        <td>Rp {{ number_format($item->amount, 0, ',', '.') }}</td>
-                        <td>{{ $item->description ?? '-' }}</td>
+                        <td>{{ $item->tanggal }}</td>
+                        <td>
+                            @if($isPemasukan)
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">↑ Pemasukan</span>
+                            @else
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">↓ Pengeluaran</span>
+                            @endif
+                        </td>
+                        <td class="fw-semibold">{{ $item->judul }}</td>
+                        <td><span class="badge bg-secondary">{{ $item->kategori }}</span></td>
+                        <td class="fw-semibold {{ $isPemasukan ? 'text-success' : 'text-danger' }}">
+                            {{ $isPemasukan ? '+' : '-' }} Rp {{ number_format($item->nominal, 0, ',', '.') }}
+                        </td>
+                        <td>{{ $item->keterangan ?? '-' }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="text-center py-4 text-muted">Data laporan tidak ditemukan.</td>
+                        <td colspan="7" class="text-center py-4 text-muted">Data laporan tidak ditemukan.</td>
                     </tr>
                     @endforelse
                 </tbody>

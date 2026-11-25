@@ -30,4 +30,18 @@ class Purchase extends Model
     {
         return $this->hasOne(Expense::class);
     }
+    public function up(): void
+    {
+        Schema::create('purchases', function (Blueprint $table) {
+            $table->id();
+            $table->date('purchase_date');
+            $table->string('invoice_number');
+            $table->string('supplier');
+            $table->text('items'); // Kita akan menyimpan multi-item dalam bentuk JSON/Teks
+            $table->integer('total_amount');
+            $table->string('payment_method'); // Tunai, Transfer, Tempo/Hutang
+            $table->string('status'); // Lunas, Hutang (Jatuh Tempo: 30 Nov), dll
+            $table->timestamps();
+        });
+    }
 }
