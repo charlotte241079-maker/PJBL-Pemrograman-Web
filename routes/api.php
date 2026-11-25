@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CurrencyController; // <--- VALIDASI
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\IngredientController;
 use App\Http\Controllers\Api\PurchaseController;
@@ -11,8 +12,6 @@ Route::prefix('v1')->group(function () {
     Route::apiResource('ingredients', IngredientController::class);
     Route::apiResource('purchases', PurchaseController::class);
     Route::apiResource('expenses', ExpenseController::class);
-    Route::get('/dashboard', [IngredientController::class, 'dashboard']);
 
+    Route::get('currency', [CurrencyController::class, 'index']); // <--- API MATA UANG
 });
-
-
