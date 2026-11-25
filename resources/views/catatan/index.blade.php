@@ -133,7 +133,7 @@
         </h4>
 
         <p class="text-muted mb-0">
-            Simpan informasi dan dokumentasi penting usaha Anda.
+            Masukin Catatan Penting Ke Sini, Juragan!
         </p>
     </div>
 

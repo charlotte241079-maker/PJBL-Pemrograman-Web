@@ -1,10 +1,10 @@
-
 @extends('layouts.app')
 
 @section('title', 'Stok Bahan - UMKMHub')
 @section('page-heading', 'Stok Bahan')
 
 @section('styles')
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
 <style>
     .ingredient-header {
         display: flex;
@@ -28,7 +28,7 @@
     .ingredient-card {
         border: none;
         border-radius: 14px;
-        box-shadow: 0 4px 18px rgba(0,0,0,.04);
+        box-shadow: 0 4px 18px rgba(0, 0, 0, .04);
         overflow: hidden;
     }
 
@@ -103,6 +103,17 @@
         padding: 10px 14px;
     }
 
+    .dataTables_wrapper .dataTables_filter {
+        display: none;
+    }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        font-size: 13px;
+        margin-top: 12px;
+    }
+
     .modal-content {
         border: none;
         border-radius: 14px;
@@ -137,7 +148,7 @@
         >
             <i class="bi bi-plus-lg me-1"></i>
             Tambah Bahan
-        </button>   
+        </button>
     </div>
 
     <div class="card ingredient-card">
@@ -162,7 +173,7 @@
             </div>
 
             <div class="table-responsive">
-                <table class="table table-hover ingredient-table">
+                <table id="ingredientDataTable" class="table table-hover ingredient-table">
                     <thead>
                         <tr>
                             <th>No</th>
@@ -172,7 +183,7 @@
                             <th>Satuan</th>
                             <th>Stok Minimum</th>
                             <th>Harga Terakhir</th>
-                            <th>AKsi</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
 
@@ -418,6 +429,9 @@
 @endsection
 
 @section('scripts')
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const API_URL = '/api/v1/ingredients';
@@ -429,8 +443,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const formTambah = document.getElementById('formTambahBahan');
     const btnSimpan = document.getElementById('btnSimpanBahan');
     const modalElement = document.getElementById('modalTambahBahan');
+    const formEdit = document.getElementById('formEditBahan');
+    const modalEdit = new bootstrap.Modal(document.getElementById('modalEditBahan'));
 
     let ingredientData = [];
+    let dataTableInstance = null;
 
     function escapeHTML(value) {
         return String(value ?? '')
@@ -445,287 +462,155 @@ document.addEventListener('DOMContentLoaded', function () {
         return 'Rp ' + Number(value ?? 0).toLocaleString('id-ID');
     }
 
-    
-    function renderIngredients(data) {
-
-    table.innerHTML = '';
-
-    totalIngredient.textContent =
-        'Total ' + data.length + ' bahan';
-
-    if (data.length === 0) {
-        table.innerHTML = `
-            <tr>
-                <td colspan="8" class="ingredient-empty">
-                    <i class="bi bi-box-seam fs-3"></i>
-                    <div class="mt-2">Belum ada data bahan.</div>
-                </td>
-            </tr>
-        `;
-        return;
+    function destroyDataTableIfExists() {
+        if (window.jQuery && $.fn.DataTable && $.fn.DataTable.isDataTable('#ingredientDataTable')) {
+            $('#ingredientDataTable').DataTable().destroy();
+            dataTableInstance = null;
+        }
     }
 
-    data.forEach(function(item, index) {
+    function initDataTable() {
+        if (!window.jQuery || !$.fn.DataTable) return;
 
-        const stock = Number(item.stock ?? 0);
-        const minStock = Number(item.min_stock ?? 0);
+        destroyDataTableIfExists();
 
-        const stockClass = stock <= minStock
-            ? 'stock-low'
-            : 'stock-normal';
-
-        const stockLabel = stock <= minStock
-            ? 'Stok Menipis'
-            : 'Aman';
-
-        const row = document.createElement('tr');
-
-        row.innerHTML = `
-            <td>${index + 1}</td>
-
-            <td>
-                <span class="ingredient-name">
-                    ${escapeHTML(item.name)}
-                </span>
-            </td>
-
-            <td>
-                <span class="category-badge">
-                    ${escapeHTML(item.category ?? '-')}
-                </span>
-            </td>
-
-            <td>
-                <span class="stock-badge ${stockClass}">
-                    ${stock}
-                </span>
-                <div>
-                    <small class="text-muted">
-                        ${stockLabel}
-                    </small>
-                </div>
-            </td>
-
-            <td>${escapeHTML(item.unit ?? '-')}</td>
-
-            <td>${minStock}</td>
-
-            <td>${formatRupiah(item.last_price)}</td>
-
-            <td>
-                <div class="d-flex gap-2">
-                    <button type="button"
-                        class="btn btn-sm btn-outline-primary btn-edit"
-                        data-id="${item.id}"
-                        title="Edit">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-
-                    <button type="button"
-                        class="btn btn-sm btn-outline-danger btn-delete"
-                        data-id="${item.id}"
-                        title="Hapus">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-            </td>
-        `;
-
-        table.appendChild(row);
-    });
-}
-
-// ==============================
-// EDIT DAN HAPUS BAHAN
-// ==============================
-
-const formEdit = document.getElementById('formEditBahan');
-
-const modalEdit = new bootstrap.Modal(
-    document.getElementById('modalEditBahan')
-);
-
-// NOTIFIKASI
-function showMessage(message, type = 'success') {
-
-    let box = document.getElementById('ingredientMessage');
-
-    if (!box) {
-        box = document.createElement('div');
-        box.id = 'ingredientMessage';
-        table.closest('.card-body').prepend(box);
-    }
-
-    box.className = `alert alert-${type} alert-dismissible fade show`;
-    box.textContent = message;
-
-    setTimeout(() => {
-        box.classList.add('d-none');
-    }, 3500);
-}
-
-
-// KLIK TOMBOL EDIT DAN HAPUS
-table.addEventListener('click', async function(event) {
-
-    const editButton = event.target.closest('.btn-edit');
-    const deleteButton = event.target.closest('.btn-delete');
-
-    // EDIT
-    if (editButton) {
-
-        const id = editButton.dataset.id;
-
-        const item = ingredientData.find(
-            data => String(data.id) === String(id)
-        );
-
-        if (!item) return;
-
-        formEdit.elements['id'].value = item.id;
-        formEdit.elements['name'].value = item.name ?? '';
-        formEdit.elements['category'].value = item.category ?? '';
-        formEdit.elements['stock'].value = item.stock ?? 0;
-        formEdit.elements['unit'].value = item.unit ?? '';
-        formEdit.elements['min_stock'].value = item.min_stock ?? 0;
-        formEdit.elements['last_price'].value = item.last_price ?? 0;
-
-        modalEdit.show();
-    }
-
-
-    // HAPUS
-    if (deleteButton) {
-
-        const id = deleteButton.dataset.id;
-
-        const item = ingredientData.find(
-            data => String(data.id) === String(id)
-        );
-
-        if (!item) return;
-
-        const yakin = confirm(
-            `Apakah kamu yakin ingin menghapus ${item.name}?`
-        );
-
-        if (!yakin) return;
-
-        try {
-
-            const response = await fetch(
-                `/api/v1/ingredients/${id}`,
-                {
-                    method: 'DELETE',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
+        const dt = $('#ingredientDataTable').DataTable({
+            pageLength: 10,
+            lengthMenu: [5, 10, 25, 50],
+            order: [[1, 'asc']],
+            columnDefs: [
+                { orderable: false, searchable: false, targets: 0 },
+                { orderable: false, targets: -1 }
+            ],
+            language: {
+                lengthMenu: 'Tampilkan _MENU_ bahan',
+                info: 'Menampilkan _START_–_END_ dari _TOTAL_ bahan',
+                infoEmpty: 'Belum ada data bahan',
+                zeroRecords: 'Bahan tidak ditemukan',
+                paginate: {
+                    first: 'Awal',
+                    last: 'Akhir',
+                    next: 'Berikutnya',
+                    previous: 'Sebelumnya'
                 }
-            );
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(
-                    result.message || 'Gagal menghapus bahan.'
-                );
             }
+        });
 
-            showMessage(
-                result.message || 'Bahan berhasil dihapus!',
-                'success'
-            );
+        dataTableInstance = dt;
 
-            await loadIngredients();
+        dt.on('draw.dt', function () {
+            if (!dataTableInstance) return;
+            const info = dataTableInstance.page.info();
+            if (!info) return;
 
-        } catch (error) {
+            dt.column(0, { search: 'applied', order: 'applied' })
+                .nodes()
+                .each(function (cell, i) {
+                    cell.innerHTML = info.start + i + 1;
+                });
+        });
 
-            console.error(error);
-
-            showMessage(error.message, 'danger');
-        }
-    }
-
-});
-
-
-// SIMPAN PERUBAHAN EDIT
-formEdit.addEventListener('submit', async function(event) {
-
-    event.preventDefault();
-
-    if (!formEdit.reportValidity()) return;
-
-    const id = formEdit.elements['id'].value;
-
-    const formData = new FormData(formEdit);
-
-    const data = {
-        name: formData.get('name'),
-        category: formData.get('category') || null,
-        stock: Number(formData.get('stock')),
-        unit: formData.get('unit'),
-        min_stock: Number(formData.get('min_stock')),
-        last_price: Number(formData.get('last_price'))
-    };
-
-    const button = document.getElementById('btnUpdateBahan');
-
-    button.disabled = true;
-    button.textContent = 'Menyimpan...';
-
-    try {
-
-        const response = await fetch(
-            `/api/v1/ingredients/${id}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(data)
-            }
-        );
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            const errors = Object.values(result.errors || {})
-                .flat()
-                .join('\n');
-
-            throw new Error(
-                errors || result.message || 'Gagal memperbarui bahan.'
-            );
+        if (searchInput && searchInput.value) {
+            dt.search(searchInput.value);
         }
 
-        modalEdit.hide();
+        dt.draw();
+    }
+    function showMessage(message, type = 'success') {
+        let box = document.getElementById('ingredientMessage');
 
-        showMessage(
-            result.message || 'Bahan berhasil diperbarui!',
-            'success'
-        );
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'ingredientMessage';
+            table.closest('.card-body').prepend(box);
+        }
 
-        await loadIngredients();
+        box.className = `alert alert-${type} alert-dismissible fade show`;
+        box.classList.remove('d-none');
+        box.textContent = message;
 
-    } catch (error) {
-
-        console.error(error);
-
-        showMessage(error.message, 'danger');
-
-    } finally {
-
-        button.disabled = false;
-        button.textContent = 'Simpan Perubahan';
-
+        setTimeout(() => {
+            box.classList.add('d-none');
+        }, 3500);
     }
 
-});
+    function renderIngredients(data) {
+        destroyDataTableIfExists();
+        table.innerHTML = '';
 
-    // GET: mengambil data bahan dari API
+        totalIngredient.textContent = 'Total ' + data.length + ' bahan';
+
+        if (!Array.isArray(data) || data.length === 0) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="8" class="ingredient-empty">
+                        <i class="bi bi-box-seam fs-3"></i>
+                        <div class="mt-2">Belum ada data bahan.</div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        data.forEach(function (item, index) {
+            const stock = Number(item.stock ?? 0);
+            const minStock = Number(item.min_stock ?? 0);
+
+            const stockClass = stock <= minStock ? 'stock-low' : 'stock-normal';
+            const stockLabel = stock <= minStock ? 'Stok Menipis' : 'Aman';
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>
+                    <span class="ingredient-name">
+                        ${escapeHTML(item.name)}
+                    </span>
+                </td>
+                <td>
+                    <span class="category-badge">
+                        ${escapeHTML(item.category ?? '-')}
+                    </span>
+                </td>
+                <td>
+                    <span class="stock-badge ${stockClass}">
+                        ${stock}
+                    </span>
+                    <div>
+                        <small class="text-muted">
+                            ${stockLabel}
+                        </small>
+                    </div>
+                </td>
+                <td>${escapeHTML(item.unit ?? '-')}</td>
+                <td>${minStock}</td>
+                <td>${formatRupiah(item.last_price)}</td>
+                <td>
+                    <div class="d-flex gap-2">
+                        <button type="button"
+                            class="btn btn-sm btn-outline-primary btn-edit"
+                            data-id="${item.id}"
+                            title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button"
+                            class="btn btn-sm btn-outline-danger btn-delete"
+                            data-id="${item.id}"
+                            title="Hapus">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+
+            table.appendChild(row);
+        });
+
+        initDataTable();
+    }
+
     async function loadIngredients() {
+        destroyDataTableIfExists();
         table.innerHTML = `
             <tr>
                 <td colspan="8" class="ingredient-empty">
@@ -743,26 +628,26 @@ formEdit.addEventListener('submit', async function(event) {
                 }
             });
 
-            const result = await response.json();
-
             if (!response.ok) {
-                throw new Error(result.message || 'Gagal mengambil data.');
+                throw new Error(`HTTP ${response.status}`);
             }
 
-            ingredientData = result.data ?? [];
+            const result = await response.json();
+            ingredientData = Array.isArray(result.data)
+                ? result.data
+                : (Array.isArray(result) ? result : []);
 
-            // Tampilkan data dari database
             renderIngredients(ingredientData);
-
         } catch (error) {
             console.error('Gagal mengambil data:', error);
+            destroyDataTableIfExists();
 
             table.innerHTML = `
                 <tr>
                     <td colspan="8" class="ingredient-empty text-danger">
                         <i class="bi bi-exclamation-circle fs-4"></i>
                         <div class="mt-2">
-                            Gagal mengambil data dari API.
+                            Gagal mengambil data dari API. (${escapeHTML(error.message)})
                         </div>
                     </td>
                 </tr>
@@ -771,42 +656,110 @@ formEdit.addEventListener('submit', async function(event) {
             totalIngredient.textContent = 'Data tidak tersedia';
         }
     }
-    // TEST POST API
-    async function testPostAPI() {
-    try {
-        const response = await fetch('/api/v1/ingredients', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                name: 'TEST API',
-                category: 'Testing',
-                stock: 10,
-                unit: 'pcs',
-                min_stock: 2,
-                last_price: 5000
-            })
-        });
 
-        const result = await response.json();
+    table.addEventListener('click', async function (event) {
+        const editButton = event.target.closest('.btn-edit');
+        const deleteButton = event.target.closest('.btn-delete');
 
-        console.log('STATUS POST:', response.status);
-        console.log('HASIL POST:', result);
+        if (editButton) {
+            const id = editButton.dataset.id;
+            const item = ingredientData.find(data => String(data.id) === String(id));
+            if (!item) return;
 
-    } catch (error) {
-        console.error(error);
-    }
-    }
+            formEdit.elements['id'].value = item.id;
+            formEdit.elements['name'].value = item.name ?? '';
+            formEdit.elements['category'].value = item.category ?? '';
+            formEdit.elements['stock'].value = item.stock ?? 0;
+            formEdit.elements['unit'].value = item.unit ?? '';
+            formEdit.elements['min_stock'].value = item.min_stock ?? 0;
+            formEdit.elements['last_price'].value = item.last_price ?? 0;
 
-    // POST: menyimpan bahan baru
+            modalEdit.show();
+        }
+
+        if (deleteButton) {
+            const id = deleteButton.dataset.id;
+            const item = ingredientData.find(data => String(data.id) === String(id));
+            if (!item) return;
+
+            const yakin = confirm(`Apakah kamu yakin ingin menghapus ${item.name}?`);
+            if (!yakin) return;
+
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || 'Gagal menghapus bahan.');
+                }
+
+                showMessage(result.message || 'Bahan berhasil dihapus!', 'success');
+                await loadIngredients();
+            } catch (error) {
+                console.error(error);
+                showMessage(error.message, 'danger');
+            }
+        }
+    });
+
+    formEdit.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (!formEdit.reportValidity()) return;
+
+        const id = formEdit.elements['id'].value;
+        const formData = new FormData(formEdit);
+
+        const data = {
+            name: formData.get('name'),
+            category: formData.get('category') || null,
+            stock: Number(formData.get('stock')),
+            unit: formData.get('unit'),
+            min_stock: Number(formData.get('min_stock')),
+            last_price: Number(formData.get('last_price'))
+        };
+
+        const button = document.getElementById('btnUpdateBahan');
+        button.disabled = true;
+        button.textContent = 'Menyimpan...';
+
+        try {
+            const response = await fetch(`${API_URL}/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                const errors = Object.values(result.errors || {}).flat().join('\n');
+                throw new Error(errors || result.message || 'Gagal memperbarui bahan.');
+            }
+
+            modalEdit.hide();
+            showMessage(result.message || 'Bahan berhasil diperbarui!', 'success');
+            await loadIngredients();
+        } catch (error) {
+            console.error(error);
+            showMessage(error.message, 'danger');
+        } finally {
+            button.disabled = false;
+            button.textContent = 'Simpan Perubahan';
+        }
+    });
+
     formTambah.addEventListener('submit', async function (event) {
         event.preventDefault();
-
-        if (!formTambah.reportValidity()) {
-            return;
-        }
+        if (!formTambah.reportValidity()) return;
 
         const formData = new FormData(formTambah);
 
@@ -834,25 +787,17 @@ formEdit.addEventListener('submit', async function(event) {
 
             const result = await response.json();
 
-            console.log('Status POST:', response.status);
-            console.log('Respons POST:', result);
-
             if (!response.ok) {
                 if (response.status === 422) {
-                    const errors = Object.values(result.errors || {})
-                        .flat()
-                        .join('\n');
-
+                    const errors = Object.values(result.errors || {}).flat().join('\n');
                     alert(errors || result.message || 'Data tidak valid.');
                 } else {
                     alert(result.message || 'Gagal menyimpan bahan.');
                 }
-
                 return;
             }
 
             alert(result.message || 'Bahan berhasil ditambahkan!');
-
             formTambah.reset();
 
             const modal = bootstrap.Modal.getInstance(modalElement);
@@ -860,40 +805,25 @@ formEdit.addEventListener('submit', async function(event) {
                 modal.hide();
             }
 
-            // GET dijalankan setelah POST berhasil untuk memperbarui tabel.
             await loadIngredients();
-
         } catch (error) {
             console.error('Error menyimpan bahan:', error);
             alert('Terjadi kesalahan saat menghubungi server.');
-
         } finally {
             btnSimpan.disabled = false;
             btnSimpan.textContent = 'Simpan Bahan';
         }
     });
 
-    // Pencarian berdasarkan nama bahan
     searchInput.addEventListener('input', function () {
-        const keyword = this.value.toLowerCase();
-
-        const filtered = ingredientData.filter(function (item) {
-            return String(item.name ?? '')
-                .toLowerCase()
-                .includes(keyword);
-        });
-
-        renderIngredients(filtered);
+        if (dataTableInstance) {
+            dataTableInstance.search(this.value).draw();
+        }
     });
-  
 
-    // Refresh tabel
     btnRefresh.addEventListener('click', loadIngredients);
 
-    // Memuat data saat halaman pertama dibuka
     loadIngredients();
 });
-
 </script>
-
 @endsection

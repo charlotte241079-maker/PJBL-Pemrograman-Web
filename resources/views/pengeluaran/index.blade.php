@@ -198,6 +198,38 @@
                         </select>
                     </div>
 
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">
+                                Volume / Qty (Opsional)
+                            </label>
+                            <input
+                                type="number"
+                                id="qty"
+                                class="form-control"
+                                placeholder="Contoh: 10"
+                                min="0.01"
+                                step="0.01"
+                            >
+                        </div>
+
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">
+                                Satuan
+                            </label>
+                            <select id="unit" class="form-select">
+                                <option value="">-- Pilih Satuan --</option>
+                                <option value="kg">kg</option>
+                                <option value="pcs">pcs</option>
+                                <option value="liter">liter</option>
+                                <option value="gram">gram</option>
+                                <option value="ml">ml</option>
+                                <option value="box">box</option>
+                                <option value="pack">pack</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-semibold">
                             Jumlah Pengeluaran (Rp)
@@ -236,7 +268,7 @@
                             id="description"
                             class="form-control"
                             rows="3"
-                            placeholder="Tambahkan keterangan jika diperlukan"
+                            placeholder="Contoh: Restock mingguan atau catatan tambahan"
                         ></textarea>
                     </div>
 
@@ -295,6 +327,20 @@ document.addEventListener('DOMContentLoaded', function () {
             updateSummary(lastSummary);
             renderExpenses();
         });
+
+    // Jika diarahkan dari tombol [Restock Cepat] di halaman Pembelian (?restock=...)
+    const params = new URLSearchParams(window.location.search);
+    const restockItems = (params.get('restock') || '').trim();
+    if (restockItems) {
+        openExpenseForm({
+            title: `Restock Bahan: ${restockItems}`,
+            category: 'Bahan Baku',
+            qty: 10,
+            unit: 'kg',
+            description: `Restock cepat untuk bahan stok menipis: ${restockItems}`
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
 });
 
@@ -379,6 +425,49 @@ function escapeHTML(value) {
         "'": '&#039;'
     })[char]);
 
+}
+
+
+// GABUNGKAN QTY + SATUAN + KETERANGAN SAAT SIMPAN
+function buildDescriptionWithUnit(qtyValue, unitValue, noteValue) {
+    const qty = String(qtyValue ?? '').trim();
+    const unit = String(unitValue ?? '').trim();
+    const note = String(noteValue ?? '').trim();
+
+    let qtyPart = '';
+    if (qty && unit) {
+        qtyPart = `${qty} ${unit}`;
+    } else if (qty) {
+        qtyPart = `${qty} unit`;
+    } else if (unit) {
+        qtyPart = unit;
+    }
+
+    if (qtyPart && note) {
+        return `${qtyPart} - ${note}`;
+    }
+    return qtyPart || note;
+}
+
+
+// PISAHKAN KEMBALI FORMAT "10 kg - Keterangan" SAAT EDIT
+function parseDescriptionUnit(descValue) {
+    const raw = String(descValue ?? '').trim();
+    const match = raw.match(/^(\d+(?:[.,]\d+)?)\s+(kg|pcs|liter|gram|ml|box|pack|unit)\s*(?:-\s*(.*))?$/i);
+
+    if (match) {
+        return {
+            qty: match[1].replace(',', '.'),
+            unit: match[2].toLowerCase() === 'unit' ? '' : match[2].toLowerCase(),
+            description: match[3] || ''
+        };
+    }
+
+    return {
+        qty: '',
+        unit: '',
+        description: raw
+    };
 }
 
 
@@ -549,20 +638,39 @@ function renderExpenses() {
 }
 
 
-// MEMBUKA FORM TAMBAH
-function openExpenseForm() {
+// MEMBUKA FORM TAMBAH (BISA MENERIMA PREFILL RESTOCK)
+function openExpenseForm(prefill = {}) {
 
     document.getElementById('expenseForm').reset();
 
     document.getElementById('expenseId').value = '';
 
     document.getElementById('modalTitle').textContent =
-        'Tambah Pengeluaran';
+        prefill.title ? 'Restock / Tambah Pengeluaran' : 'Tambah Pengeluaran';
 
     document.getElementById('btnSimpan').innerHTML =
         '<i class="bi bi-save me-1"></i> Simpan Pengeluaran';
 
     document.getElementById('formError').textContent = '';
+
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('expense_date').value = prefill.expense_date || today;
+
+    if (prefill.title) {
+        document.getElementById('title').value = prefill.title;
+    }
+    if (prefill.category) {
+        document.getElementById('category').value = prefill.category;
+    }
+    if (prefill.qty) {
+        document.getElementById('qty').value = prefill.qty;
+    }
+    if (prefill.unit) {
+        document.getElementById('unit').value = prefill.unit;
+    }
+    if (prefill.description) {
+        document.getElementById('description').value = prefill.description;
+    }
 
     expenseModal.show();
 
@@ -580,6 +688,12 @@ async function saveExpense(event) {
 
     const errorElement = document.getElementById('formError');
 
+    const combinedDescription = buildDescriptionWithUnit(
+        document.getElementById('qty').value,
+        document.getElementById('unit').value,
+        document.getElementById('description').value
+    );
+
     const payload = {
 
         title: document.getElementById('title').value.trim(),
@@ -590,7 +704,7 @@ async function saveExpense(event) {
 
         expense_date: document.getElementById('expense_date').value,
 
-        description: document.getElementById('description').value.trim()
+        description: combinedDescription
 
     };
 
@@ -671,6 +785,7 @@ async function editExpense(id) {
         }
 
         const item = result.data;
+        const parsedDesc = parseDescriptionUnit(item.description || '');
 
         document.getElementById('expenseId').value = item.id;
 
@@ -678,13 +793,17 @@ async function editExpense(id) {
 
         document.getElementById('category').value = item.category;
 
+        document.getElementById('qty').value = parsedDesc.qty;
+
+        document.getElementById('unit').value = parsedDesc.unit;
+
         document.getElementById('amount').value = item.amount;
 
         document.getElementById('expense_date').value =
             String(item.expense_date).substring(0, 10);
 
         document.getElementById('description').value =
-            item.description || '';
+            parsedDesc.description;
 
         document.getElementById('modalTitle').textContent =
             'Edit Pengeluaran';

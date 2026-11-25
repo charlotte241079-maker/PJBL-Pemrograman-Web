@@ -4,12 +4,24 @@ namespace Database\Seeders;
 
 use App\Models\Ingredient;
 use App\Models\Supplier;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // 1. Taruh akun user untuk halaman login di paling atas method run()
+        User::updateOrCreate(
+            ['email' => 'admin@umkmhub.id'],
+            [
+                'name'     => 'Admin Juragan',
+                'password' => Hash::make('admin123'),
+            ]
+        );
+
+        // 2. Data supplier dan bahan tetap di bawahnya
         Supplier::create([
             'name'    => 'Toko Bahan Kue Makmur',
             'phone'   => '081234567890',
