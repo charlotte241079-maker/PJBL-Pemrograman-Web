@@ -2,160 +2,163 @@
 
 namespace Database\Seeders;
 
+use App\Models\Expense;
 use App\Models\Ingredient;
 use App\Models\Purchase;
 use App\Models\Supplier;
+use App\Models\Umkm;
 use Illuminate\Database\Seeder;
 
 class PurchaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $supplier1 = Supplier::firstOrCreate(
-            ['name' => 'Toko Bahan Kue Makmur'],
+        $umkm = Umkm::where('name', 'Toko Roti Demo')->firstOrFail();
+
+        $supplier1 = Supplier::updateOrCreate(
+            [
+                'umkm_id' => $umkm->id,
+                'name' => 'Toko Bahan Kue Makmur',
+            ],
             [
                 'phone' => '081234567890',
                 'address' => 'Pasar Induk Blok A No. 12',
             ]
         );
 
-        $supplier2 = Supplier::firstOrCreate(
-            ['name' => 'CV Sembako Jaya'],
+        $supplier2 = Supplier::updateOrCreate(
+            [
+                'umkm_id' => $umkm->id,
+                'name' => 'CV Sembako Jaya',
+            ],
             [
                 'phone' => '085678901234',
                 'address' => 'Jl. Raya Industri No. 45',
             ]
         );
 
-        $ingredient1 = Ingredient::firstOrCreate(
-            ['name' => 'Tepung Terigu Protein Sedang'],
-            [
-                'category' => 'Bahan Baku',
-                'unit' => 'kg',
-            ]
-        );
-
-        $ingredient2 = Ingredient::firstOrCreate(
-            ['name' => 'Gula Pasir'],
-            [
-                'category' => 'Bahan Baku',
-                'unit' => 'kg',
-            ]
-        );
-
-        $ingredient3 = Ingredient::firstOrCreate(
-            ['name' => 'Minyak Goreng'],
-            [
-                'category' => 'Bahan Baku',
-                'unit' => 'liter',
-            ]
-        );
-
-        $ingredient4 = Ingredient::firstOrCreate(
-            ['name' => 'Telur Ayam'],
-            [
-                'category' => 'Bahan Baku',
-                'unit' => 'kg',
-            ]
-        );
+        $ingredients = Ingredient::where('umkm_id', $umkm->id)
+            ->get()
+            ->keyBy('name');
 
         $purchases = [
             [
                 'supplier_id' => $supplier1->id,
-                'ingredient_id' => $ingredient1->id,
-                'quantity' => 5.00,
-                'unit_price' => 35000.00,
+                'ingredient' => 'Tepung Terigu',
+                'quantity' => 5,
+                'unit_price' => 35000,
                 'purchase_date' => '2026-11-01',
-                'notes' => 'Pembeli: Ibu Rina - Pesanan 5 box (Lunas)',
+                'notes' => 'Pembelian bahan baku tepung',
             ],
             [
                 'supplier_id' => $supplier2->id,
-                'ingredient_id' => $ingredient2->id,
-                'quantity' => 8.00,
-                'unit_price' => 25000.00,
+                'ingredient' => 'Gula Pasir',
+                'quantity' => 8,
+                'unit_price' => 25000,
                 'purchase_date' => '2026-11-03',
-                'notes' => 'Pembeli: Pak Budi - Order harian toko',
+                'notes' => 'Pembelian bahan baku gula',
             ],
             [
                 'supplier_id' => null,
-                'ingredient_id' => $ingredient3->id,
-                'quantity' => 3.00,
-                'unit_price' => 45000.00,
+                'ingredient' => 'Minyak Goreng',
+                'quantity' => 3,
+                'unit_price' => 45000,
                 'purchase_date' => '2026-11-05',
-                'notes' => 'Pembeli: Nabila - Pembelian langsung di tempat',
+                'notes' => 'Pembelian langsung di tempat',
             ],
             [
                 'supplier_id' => $supplier1->id,
-                'ingredient_id' => $ingredient4->id,
-                'quantity' => 10.00,
-                'unit_price' => 30000.00,
+                'ingredient' => 'Telur Ayam',
+                'quantity' => 10,
+                'unit_price' => 30000,
                 'purchase_date' => '2026-11-08',
-                'notes' => 'Pembeli: Kafe Kopi Senja - Order rutin mingguan',
+                'notes' => 'Pembelian telur untuk produksi',
             ],
             [
                 'supplier_id' => null,
-                'ingredient_id' => $ingredient1->id,
-                'quantity' => 4.00,
-                'unit_price' => 35000.00,
+                'ingredient' => 'Tepung Terigu',
+                'quantity' => 4,
+                'unit_price' => 35000,
                 'purchase_date' => '2026-11-10',
-                'notes' => 'Pembeli: Dimas Pratama - Pesanan via WhatsApp',
+                'notes' => 'Pembelian tambahan tepung',
             ],
             [
                 'supplier_id' => $supplier2->id,
-                'ingredient_id' => $ingredient2->id,
-                'quantity' => 12.00,
-                'unit_price' => 24000.00,
+                'ingredient' => 'Gula Pasir',
+                'quantity' => 12,
+                'unit_price' => 24000,
                 'purchase_date' => '2026-11-13',
-                'notes' => 'Pembeli: Bu Sari - Pesanan acara keluarga',
+                'notes' => 'Pembelian tambahan gula',
             ],
             [
                 'supplier_id' => null,
-                'ingredient_id' => $ingredient3->id,
-                'quantity' => 6.00,
-                'unit_price' => 45000.00,
+                'ingredient' => 'Minyak Goreng',
+                'quantity' => 6,
+                'unit_price' => 45000,
                 'purchase_date' => '2026-11-15',
-                'notes' => 'Pembeli: Warung Mbak Yuni - Repeat order',
+                'notes' => 'Pembelian minyak goreng',
             ],
             [
                 'supplier_id' => $supplier1->id,
-                'ingredient_id' => $ingredient4->id,
-                'quantity' => 15.00,
-                'unit_price' => 29000.00,
+                'ingredient' => 'Telur Ayam',
+                'quantity' => 15,
+                'unit_price' => 29000,
                 'purchase_date' => '2026-11-18',
-                'notes' => 'Pembeli: Kantor Kecamatan - Konsumsi rapat',
+                'notes' => 'Pembelian telur mingguan',
             ],
             [
                 'supplier_id' => null,
-                'ingredient_id' => $ingredient1->id,
-                'quantity' => 7.00,
-                'unit_price' => 35000.00,
+                'ingredient' => 'Tepung Terigu',
+                'quantity' => 7,
+                'unit_price' => 35000,
                 'purchase_date' => '2026-11-20',
-                'notes' => 'Pembeli: Alya Putri - Order paket hemat',
+                'notes' => 'Pembelian stok tepung',
             ],
             [
                 'supplier_id' => $supplier2->id,
-                'ingredient_id' => $ingredient2->id,
-                'quantity' => 20.00,
-                'unit_price' => 23500.00,
+                'ingredient' => 'Gula Pasir',
+                'quantity' => 20,
+                'unit_price' => 23500,
                 'purchase_date' => '2026-11-23',
-                'notes' => 'Pembeli: Catering Berkah - Pesanan partai besar',
+                'notes' => 'Pembelian stok gula',
             ],
         ];
 
-        foreach ($purchases as $purchase) {
-            $totalPrice = round($purchase['quantity'] * $purchase['unit_price'], 2);
+        foreach ($purchases as $item) {
+            $ingredient = $ingredients->get($item['ingredient']);
 
-            Purchase::firstOrCreate(
+            if (!$ingredient) {
+                continue;
+            }
+
+            $totalPrice = $item['quantity'] * $item['unit_price'];
+
+            $purchase = Purchase::updateOrCreate(
                 [
-                    'purchase_date' => $purchase['purchase_date'],
-                    'notes' => $purchase['notes'],
+                    'umkm_id' => $umkm->id,
+                    'purchase_date' => $item['purchase_date'],
+                    'notes' => $item['notes'],
                 ],
                 [
-                    'supplier_id' => $purchase['supplier_id'],
-                    'ingredient_id' => $purchase['ingredient_id'],
-                    'quantity' => $purchase['quantity'],
-                    'unit_price' => $purchase['unit_price'],
+                    'supplier_id' => $item['supplier_id'],
+                    'ingredient_id' => $ingredient->id,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
                     'total_price' => $totalPrice,
+                ]
+            );
+
+            Expense::updateOrCreate(
+                [
+                    'umkm_id' => $umkm->id,
+                    'purchase_id' => $purchase->id,
+                ],
+                [
+                    'title' => 'Pembelian ' . $ingredient->name,
+                    'category' => 'Bahan Baku',
+                    'amount' => $totalPrice,
+                    'expense_date' => $item['purchase_date'],
+                    'description' => $item['notes'],
                 ]
             );
         }

@@ -2,80 +2,65 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\User;
-use App\Models\Supplier;
-use App\Models\Ingredient;
+use App\Models\Umkm;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use RuntimeException;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Data Admin
+        // Password diambil dari file .env, bukan ditulis di kode.
+        $adminPassword = env('ADMIN_PASSWORD');
+        $umkmPassword = env('DEMO_UMKM_PASSWORD');
+
+        if (!$adminPassword || !$umkmPassword) {
+            throw new RuntimeException(
+                'ADMIN_PASSWORD dan DEMO_UMKM_PASSWORD harus diisi di file .env.'
+            );
+        }
+
+        // Membuat akun Admin.
         User::updateOrCreate(
             ['email' => 'admin@umkmhub.id'],
             [
-                'name' => 'Admin Juragan',
-                'password' => Hash::make('bekasitanparaiapasih'),
+                'name' => 'Admin UMKM Hub',
+                'password' => Hash::make($adminPassword),
+                'role' => 'admin',
+                'umkm_id' => null,
             ]
         );
 
-        // 2. Data Supplier
-        Supplier::updateOrCreate(
-            ['name' => 'Toko Bahan Kue Makmur'],
+        // Membuat satu UMKM contoh yang sudah disetujui.
+        $umkm = Umkm::updateOrCreate(
+            ['name' => 'Toko Roti Demo'],
             [
+                'owner_name' => 'Pemilik Toko Roti Demo',
+                'business_type' => 'Kuliner',
                 'phone' => '081234567890',
-                'address' => 'Pasar Induk Blok A No. 12',
+                'address' => 'Bogor, Jawa Barat',
+                'status' => 'approved',
             ]
         );
 
-        Supplier::updateOrCreate(
-            ['name' => 'CV Sembako Jaya'],
+        // Membuat akun Pelaku UMKM untuk data contoh.
+        User::updateOrCreate(
+            ['email' => 'umkm@umkmhub.id'],
             [
-                'phone' => '085678901234',
-                'address' => 'Jl. Raya Industri No. 45',
+                'name' => 'Pemilik Toko Roti Demo',
+                'password' => Hash::make($umkmPassword),
+                'role' => 'umkm',
+                'umkm_id' => $umkm->id,
             ]
         );
 
-        // 3. Data Ingredient
-        Ingredient::updateOrCreate(
-            ['name' => 'Tepung Terigu Protein Sedang'],
-            [
-                'category' => 'Bahan Kering',
-                'stock' => 25,
-                'unit' => 'kg',
-                'min_stock' => 5,
-                'last_price' => 12000,
-            ]
-        );
-
-        Ingredient::updateOrCreate(
-            ['name' => 'Gula Pasir Putih'],
-            [
-                'category' => 'Bahan Kering',
-                'stock' => 15,
-                'unit' => 'kg',
-                'min_stock' => 5,
-                'last_price' => 16500,
-            ]
-        );
-
-        Ingredient::updateOrCreate(
-            ['name' => 'Minyak Goreng Kemasan'],
-            [
-                'category' => 'Bahan Cair',
-                'stock' => 10,
-                'unit' => 'liter',
-                'min_stock' => 3,
-                'last_price' => 15000,
-            ]
-        );
-
-        // 4. Jalankan Seeder Lainnya
+        // Data operasional dibuat setelah UMKM tersedia.
         $this->call([
-            ExpenseSeeder::class,
+            IngredientSeeder::class,
             PurchaseSeeder::class,
+            ExpenseSeeder::class,
             LaporanSeeder::class,
         ]);
     }

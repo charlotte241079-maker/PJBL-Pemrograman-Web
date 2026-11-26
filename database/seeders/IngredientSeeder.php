@@ -2,13 +2,16 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Ingredient;
+use App\Models\Umkm;
+use Illuminate\Database\Seeder;
 
 class IngredientSeeder extends Seeder
 {
     public function run(): void
     {
+        $umkm = Umkm::where('name', 'Toko Roti Demo')->firstOrFail();
+
         $ingredients = [
             [
                 'name' => 'Tepung Terigu',
@@ -77,8 +80,11 @@ class IngredientSeeder extends Seeder
         ];
 
         foreach ($ingredients as $ingredient) {
-            Ingredient::firstOrCreate(
-                ['name' => $ingredient['name']],
+            Ingredient::updateOrCreate(
+                [
+                    'umkm_id' => $umkm->id,
+                    'name' => $ingredient['name'],
+                ],
                 $ingredient
             );
         }

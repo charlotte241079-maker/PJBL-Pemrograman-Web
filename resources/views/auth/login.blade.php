@@ -109,6 +109,12 @@
                 <i class="bi bi-box-arrow-in-right me-1"></i> Masuk ke Dashboard
             </button>
         </form>
+        <p class="text-center small text-muted mt-4 mb-0">
+            Belum memiliki akun?
+            <a href="{{ route('register') }}" class="text-success fw-semibold text-decoration-none">
+                Daftar UMKM
+            </a>
+        </p>
     </div>
 
     <script>

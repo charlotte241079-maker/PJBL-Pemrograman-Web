@@ -8,35 +8,62 @@ use Mews\Purifier\Facades\Purifier;
 
 class NoteController extends Controller
 {
-    // Menampilkan catatan
     public function index()
     {
-        $notes = Note::latest()->get();
+        $user = auth()->user();
+
+        if ($user->isAdmin()) {
+            $notes = Note::with('umkm')->latest()->get();
+        } else {
+            abort_unless(
+                $user->isUmkm() && $user->umkm_id,
+                403
+            );
+
+            $notes = Note::where('umkm_id', $user->umkm_id)
+                ->latest()
+                ->get();
+        }
 
         return view('catatan.index', compact('notes'));
     }
 
-    // Menyimpan catatan
     public function store(Request $request)
     {
+        $user = auth()->user();
+
+        abort_unless(
+            $user->isUmkm() && $user->umkm_id,
+            403
+        );
+
         $validated = $request->validate([
-        'title' => 'required|string|max:255',
-        'content' => 'required|string',
-    ]);
+            'title' => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string'],
+        ]);
 
-    $validated['content'] = Purifier::clean(
-        $validated['content']
-    );
+        $validated['content'] = Purifier::clean(
+            $validated['content']
+        );
 
-    Note::create($validated);
+        $user->umkm->notes()->create($validated);
 
-    return redirect()
-        ->route('notes.index')
-        ->with('success', 'Catatan berhasil disimpan!');
+        return redirect()
+            ->route('notes.index')
+            ->with('success', 'Catatan berhasil disimpan!');
     }
-    // Menghapus catatan
+
     public function destroy(Note $note)
     {
+        $user = auth()->user();
+
+        abort_unless(
+            $user->isUmkm() &&
+            $user->umkm_id &&
+            $note->umkm_id === $user->umkm_id,
+            403
+        );
+
         $note->delete();
 
         return redirect()

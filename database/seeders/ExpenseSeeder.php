@@ -2,13 +2,16 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Expense;
+use App\Models\Umkm;
+use Illuminate\Database\Seeder;
 
 class ExpenseSeeder extends Seeder
 {
     public function run(): void
     {
+        $umkm = Umkm::where('name', 'Toko Roti Demo')->firstOrFail();
+
         $expenses = [
             [
                 'title' => 'Pembelian Tepung Terigu',
@@ -83,8 +86,9 @@ class ExpenseSeeder extends Seeder
         ];
 
         foreach ($expenses as $expense) {
-            Expense::firstOrCreate(
+            Expense::updateOrCreate(
                 [
+                    'umkm_id' => $umkm->id,
                     'title' => $expense['title'],
                     'expense_date' => $expense['expense_date'],
                 ],
